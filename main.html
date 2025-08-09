@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ByteCompute</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        /* Custom styling for the generated code block */
+        pre {
+            background-color: #111827; /* A darker gray for contrast */
+            color: #d1d5db; /* Light gray text */
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            position: relative;
+            border: 1px solid #374151;
+        }
+        .copy-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: #374151;
+            color: #e5e7eb;
+            border: none;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+        }
+        .copy-button:hover {
+            background-color: #4b5563;
+        }
+        .copy-button svg {
+            margin-right: 0.5rem;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex flex-col items-center min-h-screen p-4 sm:p-6">
+
+    <div class="w-full max-w-3xl mx-auto">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+                Dev Oracle
+            </h1>
+            <p class="text-gray-400 mt-2">Ask a web development question, get a direct code answer.</p>
+        </header>
+
+        <!-- Search Form -->
+        <form id="search-form" class="mb-8">
+            <div class="relative">
+                <input type="text" id="search-input"
+                    class="w-full p-4 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                    placeholder="e.g., How do I center a div?">
+                <button type="submit"
+                    class="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-blue-400 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+            </div>
+        </form>
+
+        <!-- Results Section -->
+        <main id="results-container" class="bg-gray-800 p-6 rounded-lg shadow-lg min-h-[200px] flex items-center justify-center">
+            <div id="placeholder" class="text-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M10 20l4-16m4 4l-4 4-4 4-4-4 4-4zM2 12h20" />
+                </svg>
+                <p class="mt-2">Your generated code will appear here.</p>
+            </div>
+            <div id="loader" class="hidden loader"></div>
+            <div id="output" class="w-full"></div>
+        </main>
+        
+        <!-- Message Box for copy notification -->
+        <div id="message-box" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg transition-opacity duration-300 opacity-0">
+            Code copied to clipboard!
+        </div>
+
+    </div>
+
+    <script>
+        const searchForm = document.getElementById('search-form');
+        const searchInput = document.getElementById('search-input');
+        const resultsContainer = document.getElementById('results-container');
+        const placeholder = document.getElementById('placeholder');
+        const loader = document.getElementById('loader');
+        const outputContainer = document.getElementById('output');
+        const messageBox = document.getElementById('message-box');
+
+        searchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userInput = searchInput.value.trim();
+            if (!userInput) return;
+
+            // --- UI state updates ---
+            placeholder.classList.add('hidden');
+            outputContainer.innerHTML = '';
+            loader.classList.remove('hidden');
+
+            try {
+                // --- Construct the prompt for the Gemini API ---
+                // We engineer the prompt to ask for a direct, code-only response.
+                const prompt = `
+                    You are an expert web development assistant. Your sole purpose is to provide a direct, concise, and ready-to-use code snippet that answers the following user query.
+                    - Provide ONLY the code.
+                    - Do NOT include any explanations, introductions, or conversational text.
+                    - The code should be complete and immediately usable.
+                    - Infer the language (HTML, CSS, JavaScript, etc.) from the query.
+
+                    User Query: "${userInput}"
+                `;
+
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // API key will be provided by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                // --- API Call with Exponential Backoff ---
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                let codeText = '';
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    codeText = result.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error("Received an invalid response from the API.");
+                }
+
+                // --- Display the result ---
+                displayCode(codeText);
+
+            } catch (error) {
+                console.error("Error fetching from Gemini API:", error);
+                displayError("Sorry, something went wrong. Please try again.");
+            } finally {
+                // --- Final UI state update ---
+                loader.classList.add('hidden');
+            }
+        });
+        
+        /**
+         * Fetches a resource with exponential backoff retry mechanism.
+         * @param {string} url - The URL to fetch.
+         * @param {object} options - The options for the fetch request.
+         * @param {number} maxRetries - The maximum number of retries.
+         * @returns {Promise<Response>}
+         */
+        async function fetchWithBackoff(url, options, maxRetries = 3) {
+            let attempt = 0;
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429 || response.status >= 500) { // Throttling or server error
+                        throw new Error(`Retryable error: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        throw error; // Max retries reached
+                    }
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    // console.log(`Attempt ${attempt} failed. Retrying in ${delay.toFixed(0)}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+
+        /**
+         * Displays the generated code in a formatted block.
+         * @param {string} code - The code string to display.
+         */
+        function displayCode(code) {
+            // Clean up the code string from markdown backticks if they exist
+            const cleanedCode = code.replace(/```[\s\S]*?\n/g, '').replace(/```/g, '').trim();
+
+            const pre = document.createElement('pre');
+            const codeEl = document.createElement('code');
+            
+            // Basic syntax highlighting approximation by just setting the text
+            // For a real app, a library like highlight.js would be used here.
+            codeEl.textContent = cleanedCode;
+            pre.appendChild(codeEl);
+
+            // Add copy button
+            const copyButton = document.createElement('button');
+            copyButton.className = 'copy-button';
+            copyButton.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                  <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                </svg>
+                Copy`;
+            
+            copyButton.addEventListener('click', () => {
+                // Use a textarea to preserve formatting on copy
+                const textArea = document.createElement('textarea');
+                textArea.value = cleanedCode;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showCopyMessage();
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+                document.body.removeChild(textArea);
+            });
+
+            pre.appendChild(copyButton);
+            outputContainer.innerHTML = '';
+            outputContainer.appendChild(pre);
+        }
+
+        /**
+         * Displays an error message in the output container.
+         * @param {string} message - The error message to display.
+         */
+        function displayError(message) {
+            outputContainer.innerHTML = `<div class="text-center text-red-400">${message}</div>`;
+        }
+        
+        /**
+         * Shows a temporary message indicating text was copied.
+         */
+        function showCopyMessage() {
+            messageBox.classList.remove('opacity-0');
+            setTimeout(() => {
+                messageBox.classList.add('opacity-0');
+            }, 2000);
+        }
+
+    </script>
+</body>
+</html>
